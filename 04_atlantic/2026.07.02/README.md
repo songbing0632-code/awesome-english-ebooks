@@ -7,7 +7,7 @@
 
 ---------------------
 ## 杂志下载
-* [下载 mobi 格式](https://raw.githubusercontent.com/hehonghui/awesome-english-ebooks/master/./04_atlantic/2026.07.02/Atlantic_2026.07.02.mobi) 
-* [下载 epub 格式](https://raw.githubusercontent.com/hehonghui/awesome-english-ebooks/master/./04_atlantic/2026.07.02/Atlantic_2026.07.02.epub)
-* [下载 pdf 格式](https://raw.githubusercontent.com/hehonghui/awesome-english-ebooks/master/./04_atlantic/2026.07.02/Atlantic_2026.07.02.pdf)
+* [下载 mobi 格式](https://raw.githubusercontent.com/hehonghui/awesome-english-ebooks/master/./04_atlantic//2026.07.02//Atlantic_2026.07.02.mobi) 
+* [下载 epub 格式](https://raw.githubusercontent.com/hehonghui/awesome-english-ebooks/master/./04_atlantic//2026.07.02//Atlantic_2026.07.02.epub)
+* [下载 pdf 格式](https://raw.githubusercontent.com/hehonghui/awesome-english-ebooks/master/./04_atlantic//2026.07.02//Atlantic_2026.07.02.pdf)
     
