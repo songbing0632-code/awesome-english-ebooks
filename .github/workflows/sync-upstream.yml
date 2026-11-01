@@ -16,24 +16,62 @@ jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
-      - name: Merge the current upstream branch
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const { owner, repo } = context.repo;
-            const current = await github.rest.repos.get({ owner, repo });
-            if (!current.data.fork || !current.data.parent) {
-              core.setFailed(`${owner}/${repo} is not a fork`);
-              return;
-            }
+      - name: Merge upstream without downloading file contents
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
 
-            const upstream = current.data.parent.full_name;
-            const [upstreamOwner, upstreamRepo] = upstream.split('/');
-            const branch = current.data.default_branch;
-            const source = await github.rest.git.getRef({
-              owner: upstreamOwner,
-              repo: upstreamRepo,
-              ref: `heads/${branch}`,
-            });
-            const result = await github.rest.repos.mergeUpstream({ owner, repo, branch });
-            core.info(`Synced ${upstream}@${source.data.object.sha} into ${owner}/${repo}@${branch}: ${result.data.message}`);
+          repo_json="$(gh api "repos/${GITHUB_REPOSITORY}")"
+          if [[ "$(jq -r '.fork' <<<"${repo_json}")" != "true" ]]; then
+            echo "::error::${GITHUB_REPOSITORY} is not a fork"
+            exit 1
+          fi
+
+          upstream="$(jq -r '.parent.full_name // empty' <<<"${repo_json}")"
+          branch="$(jq -r '.default_branch' <<<"${repo_json}")"
+          if [[ -z "${upstream}" || -z "${branch}" ]]; then
+            echo "::error::Unable to determine upstream repository or default branch"
+            exit 1
+          fi
+
+          workdir="$(mktemp -d)"
+          trap 'rm -rf "${workdir}"' EXIT
+
+          git clone --bare --filter=blob:none \
+            "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git" \
+            "${workdir}/repo.git"
+          cd "${workdir}/repo.git"
+          git remote add upstream "${GITHUB_SERVER_URL}/${upstream}.git"
+          git fetch --filter=blob:none upstream "${branch}"
+
+          fork_sha="$(git rev-parse "refs/heads/${branch}")"
+          upstream_sha="$(git rev-parse FETCH_HEAD)"
+
+          if git merge-base --is-ancestor "${upstream_sha}" "${fork_sha}"; then
+            echo "Upstream ${upstream}@${upstream_sha} is already included"
+            exit 0
+          fi
+
+          merge_output="$(mktemp)"
+          if ! git merge-tree --write-tree --name-only \
+            "${fork_sha}" "${upstream_sha}" >"${merge_output}"; then
+            cat "${merge_output}"
+            echo "::error::Upstream merge has conflicts; manual review is required"
+            exit 1
+          fi
+          merged_tree="$(head -n 1 "${merge_output}")"
+
+          merge_commit="$(
+            printf 'Sync upstream %s@%s\n' "${upstream}" "${upstream_sha}" |
+              git -c user.name='github-actions[bot]' \
+                -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+                commit-tree "${merged_tree}" \
+                -p "${fork_sha}" -p "${upstream_sha}"
+          )"
+
+          auth_header="$(printf 'x-access-token:%s' "${GITHUB_TOKEN}" | base64 | tr -d '\n')"
+          git -c "http.extraHeader=AUTHORIZATION: basic ${auth_header}" \
+            push origin "${merge_commit}:refs/heads/${branch}"
+          echo "Synced ${upstream}@${upstream_sha} into ${GITHUB_REPOSITORY}@${branch}"
